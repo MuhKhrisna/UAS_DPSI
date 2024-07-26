@@ -8,15 +8,25 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 // Middleware for authentication
 const authenticate = (req, res, next) => {
-  const token = req.headers['authorization'];
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.status(403).json({ message: 'Token is required' });
+
+  const token = authHeader.split(' ')[1];
   if (!token) return res.status(403).json({ message: 'Token is required' });
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).json({ message: 'Invalid token' });
-    req.email = decoded.email;
+    if (err) {
+      console.error('Token verification failed:', err);
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    console.log('Token decoded:', decoded); // This will be an empty object or just the token metadata
     next();
   });
 };
+
+module.exports = authenticate;
+
 
 // UC-01: Memesan Kopi
 router.post('/order', authenticate, async (req, res) => {
