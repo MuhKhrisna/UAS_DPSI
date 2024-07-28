@@ -7,45 +7,53 @@ const db = require('../firebase');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Middleware for authentication
-const authenticate = (req, res, next) => {
+const authenticate = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader) return res.status(403).json({ message: 'Token is required' });
 
   const token = authHeader.split(' ')[1];
   if (!token) return res.status(403).json({ message: 'Token is required' });
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      console.error('Token verification failed:', err);
-      return res.status(401).json({ message: 'Invalid token' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userRef = db.collection('users').doc(decoded.id);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(401).json({ message: 'Invalid token: User not found' });
     }
 
-    console.log('Token decoded:', decoded); // This will be an empty object or just the token metadata
+    req.user = userDoc.data(); // Attach user data to request object
     next();
-  });
+  } catch (err) {
+    console.error('Token verification failed:', err);
+    return res.status(401).json({ message: 'Invalid token' });
+  }
 };
-
-module.exports = authenticate;
 
 
 // UC-01: Memesan Kopi
-router.post('/order', authenticate, async (req, res) => {
+router.post('/orders/order', authenticate, async (req, res) => {
   const { cafe, coffeeType, size, additions } = req.body;
-  const email = req.email;
   
-  const order = {
-    email,
-    cafe,
-    coffeeType,
-    size,
-    additions,
-    status: 'pending',
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
-  };
-
-  const orderRef = await db.collection('orders').add(order);
-  res.status(201).json({ message: 'Order placed successfully', orderId: orderRef.id });
+  try {
+    const orderRef = await db.collection('orders').add({
+      email: req.user.email, // Use the user email from req.user
+      cafe,
+      coffeeType,
+      size,
+      additions,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+    
+    res.status(201).json({ message: 'Order placed successfully', orderId: orderRef.id });
+  } catch (error) {
+    console.error('Error placing order:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
+
 
 // UC-02: Membayar Pesanan Kopi
 router.post('/pay/:orderId', authenticate, async (req, res) => {

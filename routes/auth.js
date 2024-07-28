@@ -36,10 +36,11 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ message: 'Invalid credentials' });
   }
 
-  // Create token without signing email or any payload
-  const token = jwt.sign({}, JWT_SECRET, { expiresIn: '1h' });
+  // Include user ID in the token
+  const token = jwt.sign({ id: userDoc.id }, JWT_SECRET, { expiresIn: '20h' });
   res.status(200).json({ token });
 });
+
 
 
 module.exports = router;
